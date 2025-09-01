@@ -74,7 +74,6 @@ local function get_one_word_items()
   return items
 end
 
-
 -- Reward system
 local function give_reward(player)
   local item = reward_items[math.random(#reward_items)]
@@ -286,6 +285,22 @@ local function challenge_timeout_loop()
     end
     challenge_timeout_loop()
   end)
+end
+
+function challenge_respond(name, message)
+  if not current_challenge then return end
+
+  if message == current_challenge.answer then
+    local elapsed = (minetest.get_us_time() - current_challenge.start_time) / 1000000
+    minetest.chat_send_all("✅ " ..
+      name ..
+      " solved the " .. current_challenge.type .. " challenge in " .. string.format("%.2f", elapsed) .. " seconds!")
+
+    local player = minetest.get_player_by_name(name)
+    if player then give_reward(player) end
+
+    current_challenge = nil
+  end
 end
 
 minetest.register_on_mods_loaded(function()
