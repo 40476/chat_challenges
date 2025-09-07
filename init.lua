@@ -80,7 +80,23 @@ local function give_reward(player)
   local inv = player:get_inventory()
   if inv then
     inv:add_item("main", item)
-    minetest.chat_send_all(player:get_player_name() .. " received: " .. item)
+    chat_channels.send("Challenges", "challenges", player:get_player_name() .. " received: " .. item)
+  end
+end
+
+function challenge_respond(name, message)
+  if not current_challenge then return end
+
+  if message == current_challenge.answer then
+    local elapsed = (minetest.get_us_time() - current_challenge.start_time) / 1000000
+    chat_channels.send("Challenges", "challenges", name ..
+      " solved the " .. current_challenge.type .. " challenge in " .. string.format("%.2f", elapsed) .. " seconds!")
+
+    local player = minetest.get_player_by_name(name)
+    if player then give_reward(player) end
+
+    current_challenge = nil
+    return true
   end
 end
 
@@ -88,7 +104,7 @@ end
 local function start_descramble()
   local items = get_one_word_items()
   if #items == 0 then
-    minetest.chat_send_all("❌ No valid items found for descramble.")
+    chat_channels.send("Challenges", "challenges", "❌ No valid items found for descramble.")
     return
   end
   local item_key = items[math.random(#items)]
@@ -102,14 +118,15 @@ local function start_descramble()
     start_time = minetest.get_us_time()
   }
 
-  minetest.chat_send_all("🔀 Unscramble this item name: " .. scrambled)
+  chat_channels.send("Challenges", "challenges", "🔀 Unscramble this item name: " .. scrambled)
+  print("[chat_challenges] Answer: " .. short_name)
 end
 
 -- Challenge: Missing Letter
 local function start_missing_letter()
   local items = get_one_word_items()
   if #items == 0 then
-    minetest.chat_send_all("❌ No valid items found for missing-letter challenge.")
+    chat_channels.send("Challenges", "challenges", "❌ No valid items found for missing-letter challenge.")
     return
   end
   local item_key = items[math.random(#items)]
@@ -123,14 +140,14 @@ local function start_missing_letter()
     start_time = minetest.get_us_time()
   }
 
-  minetest.chat_send_all("🧩 Fill in the missing letter: " .. puzzle)
+  chat_channels.send("Challenges", "challenges", "🧩 Fill in the missing letter: " .. puzzle)
 end
 
 -- Challenge: Typing
 local function start_typing()
   local items = get_one_word_items()
   if #items == 0 then
-    minetest.chat_send_all("❌ No valid items found for typing.")
+    chat_channels.send("Challenges", "challenges", "❌ No valid items found for typing.")
     return
   end
   local item_key = items[math.random(#items)]
@@ -143,20 +160,20 @@ local function start_typing()
     start_time = minetest.get_us_time()
   }
 
-  minetest.chat_send_all("⌨️ Type this item name: " .. display_name)
+  chat_channels.send("Challenges", "challenges", "⌨️ Type this item name: " .. display_name)
 end
 
 -- Challenge: Reaction
 local function start_reaction()
   local delay = math.random(reaction_min_delay, reaction_max_delay)
-  minetest.chat_send_all("🚨 Get ready... wait for the signal!")
+  chat_channels.send("Challenges", "challenges", "🚨 Get ready... wait for the signal!")
   minetest.after(delay, function()
     current_challenge = {
       type = "reaction",
       answer = "go",
       start_time = minetest.get_us_time()
     }
-    minetest.chat_send_all("🚨 Type 'go' NOW!")
+    chat_channels.send("Challenges", "challenges", "🚨 Type 'go' NOW!")
   end)
 end
 
@@ -173,7 +190,7 @@ local function start_math()
     start_time = minetest.get_us_time()
   }
 
-  minetest.chat_send_all("🧮 Solve: " .. a .. " " .. op .. " " .. b)
+  chat_channels.send("Challenges", "challenges", "🧮 Solve: " .. a .. " " .. op .. " " .. b)
 end
 
 -- Manual challenge command
@@ -214,23 +231,7 @@ minetest.register_chatcommand("challenge", {
   end
 })
 
--- Handle player responses
-minetest.register_on_chat_message(function(name, message)
-  if not current_challenge then return end
 
-  if message == current_challenge.answer then
-    local elapsed = (minetest.get_us_time() - current_challenge.start_time) / 1000000
-    minetest.chat_send_all("✅ " ..
-      name ..
-      " solved the " .. current_challenge.type .. " challenge in " .. string.format("%.2f", elapsed) .. " seconds!")
-
-    local player = minetest.get_player_by_name(name)
-    if player then give_reward(player) end
-
-    current_challenge = nil
-    return true
-  end
-end)
 
 -- Automatic challenge loop
 local function auto_challenge_loop()
@@ -279,7 +280,8 @@ local function challenge_timeout_loop()
       local now = minetest.get_us_time()
       local elapsed = (now - current_challenge.start_time) / 1000000
       if elapsed > challenge_timeout then
-        minetest.chat_send_all("⏰ Challenge timed out. No one solved the " .. current_challenge.type .. " challenge.")
+        chat_channels.send("Challenges", "challenges",
+          "⏰ Challenge timed out. No one solved the " .. current_challenge.type .. " challenge.")
         current_challenge = nil
       end
     end
@@ -287,23 +289,14 @@ local function challenge_timeout_loop()
   end)
 end
 
-function challenge_respond(name, message)
-  if not current_challenge then return end
-
-  if message == current_challenge.answer then
-    local elapsed = (minetest.get_us_time() - current_challenge.start_time) / 1000000
-    minetest.chat_send_all("✅ " ..
-      name ..
-      " solved the " .. current_challenge.type .. " challenge in " .. string.format("%.2f", elapsed) .. " seconds!")
-
-    local player = minetest.get_player_by_name(name)
-    if player then give_reward(player) end
-
-    current_challenge = nil
-  end
-end
+-- Handle player responses
+minetest.register_on_chat_message(function(name, message)
+  challenge_respond(name, message)
+end)
 
 minetest.register_on_mods_loaded(function()
+  chat_channels.create('challenges')
+  chat_channels.send("Challenges", "global", 'test')
   auto_challenge_loop()
   challenge_timeout_loop()
 end)
