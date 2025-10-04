@@ -1,5 +1,4 @@
 local current_challenge = nil
-local has_matrix = minetest.get_modpath("matrix_bridge")
 local challenge_types = { "descramble", "missing_letter", "typing", "reaction", "math" }
 
 -- Load settings from minetest.conf
@@ -24,18 +23,6 @@ local enabled_challenges = {}
 for challenge in enabled_challenges_raw:gmatch("[^,]+") do
   enabled_challenges[challenge] = true
 end
-
--- Utility: Get item display name (first word only)
-local function get_item_display_name(item_key)
-  local def = minetest.registered_items[item_key]
-  if def and def.description and def.description ~= "" then
-    return def.description:match("^(%w+)") or def.description
-  end
-  -- Fallback: use short name from item key
-  local short_name = item_key:match(":(%w+)$")
-  return short_name or item_key
-end
-
 
 -- Utility: Scramble a word (Fisher-Yates)
 local function scramble(word)
@@ -90,8 +77,7 @@ function challenge_respond(name, message)
   if message == current_challenge.answer then
     local elapsed = (minetest.get_us_time() - current_challenge.start_time) / 1000000
     chat_channels.send("Challenges", "challenges", name ..
-      " solved the " .. current_challenge.type .. " challenge in " .. string.format("%.2f", elapsed) .. " seconds!")
-
+      " solved the " .. current_challenge.type .. " challenge in " .. string.format("%.2f", elapsed) .. " seconds!", 4)
     local player = minetest.get_player_by_name(name)
     if player then give_reward(player) end
 
@@ -104,13 +90,12 @@ end
 local function start_descramble()
   local items = get_one_word_items()
   if #items == 0 then
-    chat_channels.send("Challenges", "challenges", "❌ No valid items found for descramble.")
+    chat_channels.send("Challenges", "challenges", "No valid items found for descramble.")
     return
   end
   local item_key = items[math.random(#items)]
   local short_name = item_key:match(":(%w+)$")
   local scrambled = scramble(short_name)
-  local display_name = get_item_display_name(item_key)
 
   current_challenge = {
     type = "descramble",
@@ -118,7 +103,7 @@ local function start_descramble()
     start_time = minetest.get_us_time()
   }
 
-  chat_channels.send("Challenges", "challenges", "🔀 Unscramble this item name: " .. scrambled)
+  chat_channels.send("Challenges", "challenges", "Unscramble this item name: " .. scrambled)
   print("[chat_challenges] Answer: " .. short_name)
 end
 
@@ -126,12 +111,11 @@ end
 local function start_missing_letter()
   local items = get_one_word_items()
   if #items == 0 then
-    chat_channels.send("Challenges", "challenges", "❌ No valid items found for missing-letter challenge.")
+    chat_channels.send("Challenges", "challenges", "No valid items found for missing-letter challenge.")
     return
   end
   local item_key = items[math.random(#items)]
   local short_name = item_key:match(":(%w+)$")
-  local display_name = get_item_display_name(item_key)
   local puzzle = remove_random_letter(short_name)
 
   current_challenge = {
@@ -140,19 +124,18 @@ local function start_missing_letter()
     start_time = minetest.get_us_time()
   }
 
-  chat_channels.send("Challenges", "challenges", "🧩 Fill in the missing letter: " .. puzzle)
+  chat_channels.send("Challenges", "challenges", "Fill in the missing letter: " .. puzzle)
 end
 
 -- Challenge: Typing
 local function start_typing()
   local items = get_one_word_items()
   if #items == 0 then
-    chat_channels.send("Challenges", "challenges", "❌ No valid items found for typing.")
+    chat_channels.send("Challenges", "challenges", "No valid items found for typing.")
     return
   end
   local item_key = items[math.random(#items)]
   local short_name = item_key:match(":(%w+)$")
-  local display_name = get_item_display_name(item_key)
 
   current_challenge = {
     type = "typing",
@@ -160,7 +143,7 @@ local function start_typing()
     start_time = minetest.get_us_time()
   }
 
-  chat_channels.send("Challenges", "challenges", "⌨️ Type this item name: " .. display_name)
+  chat_channels.send("Challenges", "challenges", "⌨️ Type this item name: " .. short_name)
 end
 
 -- Challenge: Reaction
@@ -213,9 +196,9 @@ minetest.register_chatcommand("challenge", {
     end
 
     local choice = available[math.random(#available)]
-    if has_matrix and matrix_bridge and matrix_bridge.send_to_room then
-      matrix_bridge.send_to_room("A " .. choice .. " challenge has been started.")
-    end
+    -- if has_matrix and matrix_bridge and matrix_bridge.send_to_room then
+    --   matrix_bridge.send_to_room("A " .. choice .. " challenge has been started.")
+    -- end
 
     if choice == "descramble" then
       start_descramble()
@@ -252,9 +235,9 @@ local function auto_challenge_loop()
       end
       if #available > 0 then
         local choice = available[math.random(#available)]
-        if has_matrix and matrix_bridge and matrix_bridge.send_to_room then
-          matrix_bridge.send_to_room("A " .. choice .. " challenge has been started.")
-        end
+        -- if has_matrix and matrix_bridge and matrix_bridge.send_to_room then
+        --   matrix_bridge.send_to_room("A " .. choice .. " challenge has been started.")
+        -- end
         if choice == "descramble" then
           start_descramble()
         elseif choice == "missing_letter" then
